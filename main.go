@@ -51,7 +51,6 @@ func main() {
 				for _, target := range ts {
 					checkHealth(target)
 				}
-				log.Printf("Health check finish -----------------------\n")
 			}
 		}
 	}
@@ -88,10 +87,10 @@ func checkHealth(target *backend.Target) {
 			msg = err.Error()
 		}
 
-		log.Printf("[Unhealthy] %s code:%v 😢: %v\n", target.URL, res.StatusCode, msg)
+		log.Printf("[❌] %s code:%v, %v\n", target.URL, res.StatusCode, msg)
 		target.SetHealthy(false)
 	} else {
 		target.SetHealthy(true)
-		log.Printf("[OK] %s 😄\n", target.URL)
+		log.Printf("[✅] %s\n", target.URL)
 	}
 }

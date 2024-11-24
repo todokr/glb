@@ -1,0 +1,20 @@
+* go load balancer
+
+A toy load balancer written in go.
+
+** Run
+
+*** Targets
+#+begin_src bash
+task run-targets
+#+end_src
+
+*** Load balancer
+#+begin_src bash
+task run-lb
+#+end_src
+
+*** Client
+#+begin_src bash
+curl localhost:9000
+#+end_src

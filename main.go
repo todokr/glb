@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -13,7 +12,7 @@ import (
 	"todokr.github.io/glb/pool"
 )
 
-const HeathCheckInterval = 5 * time.Second
+const HeathCheckInterval = 1 * time.Second
 const HealthCheckTimeout = 1 * time.Second
 
 func main() {
@@ -33,12 +32,31 @@ func main() {
 		urls = append(urls, strings.TrimSpace(url))
 	}
 
-	fmt.Printf("Starting server on port %d\n", port)
-	fmt.Printf("Targets: %v\n", urls)
-
 	var ts []*backend.Target
 	for _, url := range urls {
 		ts = append(ts, backend.NewTarget(url, healthCheckPath))
+	}
+
+	printInfo := func() {
+		fmt.Print("\033[H\033[J")
+		fmt.Printf("Load balancer runs on port %d\n", port)
+		fmt.Printf("Targets: %v\n", urls)
+	}
+	check := func(target *backend.Target) {
+		c := http.Client{
+			Timeout: time.Duration(HealthCheckTimeout),
+		}
+		res, err := c.Get(target.HealthCheckPath().String())
+
+		if err != nil || res.StatusCode != http.StatusOK {
+			body := res.Body
+			defer body.Close()
+			fmt.Printf("[❌] %s (%d)\n", target.URL, res.StatusCode)
+			target.SetHealthy(false)
+		} else {
+			target.SetHealthy(true)
+			fmt.Printf("[✅] %s\n", target.URL)
+		}
 	}
 
 	pool := pool.NewRoundRobinServerPool(ts)
@@ -47,9 +65,9 @@ func main() {
 		for {
 			select {
 			case <-t.C:
-				log.Printf("Health check start ------------------------\n")
+				printInfo()
 				for _, target := range ts {
-					checkHealth(target)
+					check(target)
 				}
 			}
 		}
@@ -66,31 +84,7 @@ func main() {
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: http.HandlerFunc(handler),
 	}
+	printInfo()
 	go healthCheck()
 	log.Fatal(server.ListenAndServe())
-}
-
-func checkHealth(target *backend.Target) {
-	log.Printf("Checking %s\n", target.URL)
-	c := http.Client{
-		Timeout: time.Duration(HealthCheckTimeout),
-	}
-	res, err := c.Get(target.HealthCheckPath().String())
-
-	if err != nil || res.StatusCode != http.StatusOK {
-		body := res.Body
-		defer body.Close()
-		var msg string
-		if m, err := io.ReadAll(body); err == nil {
-			msg = string(m)
-		} else {
-			msg = err.Error()
-		}
-
-		log.Printf("[❌] %s code:%v, %v\n", target.URL, res.StatusCode, msg)
-		target.SetHealthy(false)
-	} else {
-		target.SetHealthy(true)
-		log.Printf("[✅] %s\n", target.URL)
-	}
 }
